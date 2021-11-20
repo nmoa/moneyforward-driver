@@ -7,7 +7,7 @@ import json
 
 SLEEP_SEC = 1
 COOKIE_PATH = 'moneyforward_cookies.pkl'
-SIGNIN_JSON_PATH = 'moneyforward_singin.json'
+SIGNIN_JSON_PATH = 'moneyforward_signin.json'
 
 
 def login(driver):
