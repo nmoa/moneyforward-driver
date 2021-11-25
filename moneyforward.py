@@ -4,10 +4,11 @@
 import time
 import pickle
 import json
+from pathlib import Path
 
 SLEEP_SEC = 1
-COOKIE_PATH = 'moneyforward_cookies.pkl'
-SIGNIN_JSON_PATH = 'moneyforward_signin.json'
+COOKIE_PATH = Path(__file__).parent / 'moneyforward_cookies.pkl'
+SIGNIN_JSON_PATH = Path(__file__).parent / 'moneyforward_signin.json'
 
 
 def login(driver):
@@ -48,8 +49,12 @@ def login(driver):
         driver.find_element_by_xpath('//input[@type="submit"]').click()
         time.sleep(SLEEP_SEC)
 
+        if driver.current_url != url:
+            print('Login failed.')
+            return
+
         # Cookie保存
         pickle.dump(driver.get_cookies(), open(COOKIE_PATH, 'wb'))
 
-    print(driver.current_url)
+    print('Login Suceeded.')
     return
