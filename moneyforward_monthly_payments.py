@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # -*-coding:utf-8 -*-
 
 import moneyforward
@@ -6,15 +6,11 @@ import chromedriver
 import gsheet
 import pandas as pd
 import numpy as np
-from pathlib import Path
 import time
+import datetime
 
 
-SLEEP_SEC = 1
-download_path = Path.home().joinpath('Documents/assets')
-
-
-def fetchMonthlyPayments(driver):
+def fetchPaymentsTable(driver):
     """月次推移を取得する
 
     Args:
@@ -25,28 +21,38 @@ def fetchMonthlyPayments(driver):
     """
     dfs = pd.read_html(driver.page_source.replace(
         '円', '').replace('〜', ''), index_col=0, thousands=',')
-    return dfs[1].T
+    return dfs[1].T.sort_index()
+
+
+def fetchMonthlyPayments(driver, year_from, month_from):
+    date_from = datetime.datetime(
+        year_from, month_from, 1).strftime('%Y/%m/%d')
+    df = fetchPaymentsTable(driver)
+    oldest_date = df.index[0]
+    while date_from < oldest_date:
+        for i in range(5):
+            driver.find_element_by_xpath('//a[@id="b_range"]').click()
+            time.sleep(4)
+        dfa = fetchPaymentsTable(driver)
+        df = pd.concat([dfa, df])
+    return df
+
+
+def main():
+    json_key_path = '~/python/data-rush-264314-3fab8bb66575.json'
+    wks = gsheet.GSheet('資産推移', 'シート2', json_key_path)
+
+    driver = chromedriver.open()
+    moneyforward.login(driver)
+    driver.get('https://moneyforward.com/cf/monthly')
+    time.sleep(2)
+
+    df_sorted = fetchMonthlyPayments(driver)
+    df_to_paste = df_sorted[df_sorted.index >= '2018/04/01'].reset_index()
+
+    wks.write(np.asarray(df_to_paste), wks.getLastRow()+1, 1)
+    return
 
 
 if __name__ == '__main__':
-    driver = chromedriver.open(str(download_path))
-    moneyforward.login(driver)
-    driver.get('https://moneyforward.com/cf/monthly')
-
-    df = fetchMonthlyPayments(driver)
-    for j in range(8):
-        print(j)
-        for i in range(6):
-            driver.find_element_by_xpath('//a[@id="b_range"]').click()
-            time.sleep(2)
-        dfa = fetchMonthlyPayments(driver)
-        df = df.append(dfa)
-    df_sorted = df.sort_index()
-    df_to_paste = df_sorted[df_sorted.index >= '2018/04/01'].reset_index()
-
-    json_key_file = '../data-rush-264314-3fab8bb66575.json'
-    json_key_path = Path(__file__).parent.joinpath(json_key_file)
-    wks = gsheet.GSheet('資産推移', 'シート2', json_key_path)
-    wks.write(np.asarray(df_to_paste), wks.getLastRow()+1, 1)
-
-    # driver.quit()
+    main()
