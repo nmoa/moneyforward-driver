@@ -25,34 +25,46 @@ def fetchPaymentsTable(driver):
 
 
 def fetchMonthlyPayments(driver, year_from, month_from):
-    date_from = datetime.datetime(
-        year_from, month_from, 1).strftime('%Y/%m/%d')
+    dt_from = datetime.datetime(year_from, month_from, 1)
+    dt_now = datetime.datetime.now()
+    delta_month = dt_now.month - month_from + 12*(dt_now.year - year_from)
+    if delta_month <= 5:
+        n_click = 0
+    elif delta_month >= 12:
+        n_click = 6
+    else:
+        n_click = delta_month - 5
+
     df = fetchPaymentsTable(driver)
-    oldest_date = df.index[0]
-    while date_from < oldest_date:
-        for i in range(5):
-            driver.find_element_by_xpath('//a[@id="b_range"]').click()
-            time.sleep(4)
-        dfa = fetchPaymentsTable(driver)
-        df = pd.concat([dfa, df])
-    return df
+    for i in range(n_click):
+        driver.find_element_by_xpath('//a[@id="b_range"]').click()
+        time.sleep(2)
+    dfa = fetchPaymentsTable(driver)
+    df = pd.concat([dfa, df]).drop_duplicates()
+    return df[df.index >= dt_from.strftime('%Y/%m/%d')]
 
 
-def main():
-    json_key_path = '~/python/data-rush-264314-3fab8bb66575.json'
+def main(year_from, month_from):
+    json_key_path = '/home/pi/python/data-rush-264314-3fab8bb66575.json'
     wks = gsheet.GSheet('資産推移', 'シート2', json_key_path)
+    df_old = pd.DataFrame(wks.sheet.get_all_records())
+    df_old.set_index('日付', inplace=True)
 
     driver = chromedriver.open()
     moneyforward.login(driver)
     driver.get('https://moneyforward.com/cf/monthly')
     time.sleep(2)
+    df = fetchMonthlyPayments(driver, year_from, month_from)
 
-    df_sorted = fetchMonthlyPayments(driver)
-    df_to_paste = df_sorted[df_sorted.index >= '2018/04/01'].reset_index()
-
-    wks.write(np.asarray(df_to_paste), wks.getLastRow()+1, 1)
+    # データが更新されていないため直近2ヶ月分は落とす
+    df_updated = pd.concat([df_old, df[:-2]]).drop_duplicates()
+    df_updated.reset_index(inplace=True)
+    df_updated = df_updated.rename(columns={'index': '日付'})
+    wks.sheet.update([df_updated.columns.values.tolist()] +
+                     df_updated.values.tolist())
     return
 
 
 if __name__ == '__main__':
-    main()
+    dt = datetime.datetime.now()
+    main(dt.year, dt.month - 2)
