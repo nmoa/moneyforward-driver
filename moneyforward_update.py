@@ -7,10 +7,10 @@ import chromedriver
 import moneyforward
 
 
-if __name__ == '__main__':
+def update(which: str = 'personal'):
+    driver = chromedriver.open()
+    moneyforward.login(driver, which)
     try:
-        driver = chromedriver.open()
-        moneyforward.login(driver)
         driver.get('https://moneyforward.com/accounts')
         elms = driver.find_elements_by_xpath(
             "//input[@data-disable-with='更新']")
@@ -22,3 +22,9 @@ if __name__ == '__main__':
         print(e, file=sys.stderr)
     finally:
         driver.quit()
+    return
+
+
+if __name__ == '__main__':
+    update()
+    update('family')
