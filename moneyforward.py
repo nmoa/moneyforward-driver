@@ -3,6 +3,7 @@
 
 import time
 import pickle
+import sys
 import json
 import os
 from pathlib import Path
@@ -17,13 +18,19 @@ signin_infos = {'personal': Path(__file__).parent / 'moneyforward_signin.json',
                 'family': Path(__file__).parent / 'moneyforward_signin_family.json'}
 
 
-class MoneyforwardScraper:
-    def __init__(self, mail: str, password: str, cookie_path: str = '', debug: bool = False):
-        self.driver = chromedriver.open(headless=(not debug))
+class Moneyforward:
+    def __init__(self, mail: str, password: str, cookie_path: str = '', download_path: str = '', debug: bool = False):
+        download_dir_verified = download_path if Path(download_path).is_dir() else ''
+
+        self.driver = chromedriver.open(headless=(not debug), download_dir=download_dir_verified)
         self.mail = mail
         self.password = password
         self.cookie_path = Path(cookie_path) if cookie_path else None
+        self.download_dir = download_dir_verified
         return
+
+    def __del__(self):
+        self.driver.quit()
 
     def login(self) -> bool:
         print('Trying to login with cookie.')
@@ -93,20 +100,35 @@ class MoneyforwardScraper:
 
         return (self.driver.current_url == url)
 
+    def update(self):
+        try:
+            self.driver.get('https://moneyforward.com/accounts')
+            elms = self.driver.find_elements(By.XPATH, 
+                "//input[@data-disable-with='更新']")
+            for i, elm in enumerate(elms):
+                print('Updating account... [{}/{}]'.format(i+1, len(elms)))
+                elm.click()
+                time.sleep(0.5)
+        except Exception as e:
+            print(e, file=sys.stderr)
+        else:
+            print('Update finished.')
+        time.sleep(SLEEP_SEC)
+        return
 
-def loginWithCookie(driver: webdriver.Chrome, cookie_path: Path) -> bool:
-    if (not cookie_path.exists()):
-        return False
-    # Cookieを書き込み
-    driver.get('https://moneyforward.com/bs/history')
-    cookies = pickle.load(open(cookie_path, 'rb'))
-    for cookie in cookies:
-        if 'expiry' in cookie:
-            cookie.pop('expiry')
-        driver.add_cookie(cookie)
-
-    # Cookieでのログインが成功しているか確認
-    url = 'https://moneyforward.com/bs/history'
-    driver.get(url)
-    time.sleep(SLEEP_SEC)
-    return (driver.current_url == url)
+    def downloadMonthlyAssets(self, year : int, month : int):
+        if(not self.download_dir):
+            print('The download directory is invalid.')
+            return
+        print('Downloading an asset data for {}/{}.'.format(year, month))
+        date = '{}-{:02d}-01'.format(year, month)
+        try:
+            self.driver.get(
+                'https://moneyforward.com/bs/history/list/{}/monthly/csv'.format(date))
+            time.sleep(0.5)
+        except Exception as e:
+            print(e)
+        else:
+            print('Download completed.')
+        time.sleep(SLEEP_SEC)
+        return
