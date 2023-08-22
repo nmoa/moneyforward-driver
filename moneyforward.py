@@ -4,19 +4,11 @@
 import time
 import pickle
 import sys
-import json
-import os
 from pathlib import Path
-from selenium import webdriver
 from selenium.webdriver.common.by import By
 import chromedriver
 
 SLEEP_SEC = 2
-cookie_paths = {'personal': Path(__file__).parent / 'moneyforward_cookies.pkl',
-                'family': Path(__file__).parent / 'moneyforward_cookies_family.pkl'}
-signin_infos = {'personal': Path(__file__).parent / 'moneyforward_signin.json',
-                'family': Path(__file__).parent / 'moneyforward_signin_family.json'}
-
 
 class Moneyforward:
     def __init__(self, mail: str, password: str, cookie_path: str = '', download_path: str = '', debug: bool = False):
@@ -93,11 +85,11 @@ class Moneyforward:
         self.driver.get(url)
         time.sleep(SLEEP_SEC)
         print(self.driver.current_url)  # ここではmoneyforwardのtopページが出る
+
         # ログインできたか確かめるために資産推移のページに移る
         self.driver.get(url)
         time.sleep(SLEEP_SEC)
         print(self.driver.current_url)
-
         return (self.driver.current_url == url)
 
     def update(self):
