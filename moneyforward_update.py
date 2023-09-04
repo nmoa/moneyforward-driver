@@ -4,10 +4,16 @@
 import json
 from moneyforward import Moneyforward
 
-if __name__ == '__main__':
-    with open('/home/pi/python/moneyforward_scraper/moneyforward_signin.json', 'r') as f:
+def update(json_path, cookie_path):
+    with open(json_path, 'r') as f:
         json_dict = json.load(f)
-    mf = Moneyforward(json_dict['email'], json_dict['pass'], cookie_path='./moneyforward_cookies.pkl', download_path='/home/pi/Documents/assets/')
+    mf = Moneyforward(json_dict['email'], json_dict['pass'], cookie_path=cookie_path)
     mf.login()
     mf.update()
-    # update('family')
+    return
+
+if __name__ == '__main__':
+    update('/home/pi/python/moneyforward_scraper/moneyforward_signin.json', 
+           '/home/pi/python/moneyforward_scraper/moneyforward_cookies.pkl')
+    update('/home/pi/python/moneyforward_scraper/moneyforward_signin_family.json', 
+           '/home/pi/python/moneyforward_scraper/moneyforward_cookies_family.pkl')
