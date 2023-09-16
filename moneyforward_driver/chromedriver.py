@@ -8,7 +8,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 
 
-def open(headless: bool = True, download_dir: str = '') -> webdriver.Chrome:
+def init(headless: bool = True, download_dir: str = '') -> webdriver.Chrome:
     # Reference: https://stackoverflow.com/questions/70886717/chromedriver-for-linux32-does-not-exist-python-selenium-chromedriver
     options = Options()
     # a few usefull options
