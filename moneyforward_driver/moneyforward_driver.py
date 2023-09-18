@@ -48,7 +48,7 @@ class MoneyforwardDriver:
         if is_success:
             logger.info('Login succeeded.')
         else:
-            logger.warning('Login Failed.')
+            logger.error('Login Failed.')
         return is_success
 
     def __login_with_email(self) -> bool:
@@ -64,8 +64,8 @@ class MoneyforwardDriver:
 
         # パスワード入力画面
         logger.info('Current URL: %s', self.driver.current_url)
-        self.driver.find_element(By.XPATH,
-                                 '//input[@name="mfid_user[password]"]').send_keys(self.__password)
+        self.driver.find_element(
+            By.XPATH, '//input[@name="mfid_user[password]"]').send_keys(self.__password)
         self.driver.find_element(By.CSS_SELECTOR, 'button#submitto').click()
         time.sleep(SLEEP_SEC)
 
@@ -172,14 +172,23 @@ class MoneyforwardDriver:
         self.driver.get(SUMMARY_URL)
         time.sleep(SLEEP_SEC)
         target_date = datetime.datetime(year, month, 1).strftime('%Y/%m/%d')
-        result = None
+        concatted_table = None
         while True:
+            displayed_date = self.__get_date()
+            logger.info('Fetching payments table on %s.', displayed_date)
             table = self.__fetch_monthly_payment_table()
-            formatted_table = self.__format__table(table, self.__get_date())
-            result = pd.concat([formatted_table, result])
-            if self.__get_date() == target_date:
+            formatted_table = self.__format__table(table, displayed_date)
+            concatted_table = pd.concat([formatted_table, concatted_table])
+            if displayed_date == target_date:
                 break
-        return result
+            else:
+                try:
+                    self.__get_previous_month_button().click()
+                except Exception as e:
+                    logger.error(e, file=sys.stderr)
+                    return concatted_table.reset_index(drop=True)
+                time.sleep(SLEEP_SEC)
+        return concatted_table.reset_index(drop=True)
 
     def __select_month(self, target_date: str) -> bool:
         previous_month_button = self.__get_previous_month_button()
