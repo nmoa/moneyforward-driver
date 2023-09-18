@@ -169,6 +169,15 @@ class MoneyforwardDriver:
         return formatted_table
 
     def fetch_payments_from(self, year: int, month: int) -> pd.DataFrame:
+        """指定した月から現在までの項目ごとの支出を取得する
+
+        Args:
+            year (int): 年
+            month (int): 月
+
+        Returns:
+            pd.DataFrame: 支出項目のテーブル
+        """
         self.driver.get(SUMMARY_URL)
         time.sleep(SLEEP_SEC)
         target_date = datetime.datetime(year, month, 1).strftime('%Y/%m/%d')
@@ -186,7 +195,7 @@ class MoneyforwardDriver:
                     self.__get_previous_month_button().click()
                 except Exception as e:
                     logger.error(e, file=sys.stderr)
-                    return concatted_table.reset_index(drop=True)
+                    break
                 time.sleep(SLEEP_SEC)
         return concatted_table.reset_index(drop=True)
 
@@ -248,7 +257,6 @@ class MoneyforwardDriver:
         """
         l_data = []
         for index, row in df.iterrows():
-            # '食費 合計'のように書かれている行から
             if '合計' in row['項目']:
                 category = row['項目'].replace(' 合計', '')
                 continue
