@@ -1,8 +1,12 @@
 # Moneyforward Driver
 
 ## Overview
+マネーフォワードの講座更新、資産の取得、支出の取得を行うモジュール
 
 ## Installation
+```bash
+pip install moneyforward_driver@git+https://github.com/nmoa/moneyforward-driver.git
+```
 
 ## Usage
 

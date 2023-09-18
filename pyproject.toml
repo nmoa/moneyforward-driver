@@ -1,3 +1,14 @@
 [project]
 name = "moneyforward_driver"
 version = "0.0.1"
+readme = "README.md"
+license = { file = "LICENSE" }
+
+[build-system]
+requires = [
+    "pytest>=3.0.7",
+    "logzero",
+    "selenium>=4.0.0",
+    "webdriver-manager>=4.0.0",
+    "setuptools",
+]
