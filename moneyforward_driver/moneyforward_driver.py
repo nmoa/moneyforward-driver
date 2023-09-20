@@ -7,8 +7,8 @@ import pickle
 import sys
 from pathlib import Path
 from logzero import logger
-import selenium
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import ElementClickInterceptedException
 import pandas as pd
 from . import chromedriver
 
@@ -28,6 +28,7 @@ class MoneyforwardDriver:
             download_path).is_dir() else ''
         self.driver = chromedriver.init(
             headless=(not debug), download_dir=download_dir_verified)
+        self.driver.implicitly_wait(10)
         self.__mail = mail
         self.__password = password
         self.__cookie_path = Path(cookie_path) if cookie_path else None
@@ -53,21 +54,18 @@ class MoneyforwardDriver:
 
     def __login_with_email(self) -> bool:
         self.driver.get('https://moneyforward.com/sign_in')
-        time.sleep(SLEEP_SEC)
 
         # メールアドレス入力画面
         logger.info('Current URL: %s', self.driver.current_url)
         self.driver.find_element(
             By.XPATH, '//input[@name="mfid_user[email]"]').send_keys(self.__mail)
         self.driver.find_element(By.CSS_SELECTOR, 'button#submitto').click()
-        time.sleep(SLEEP_SEC)
 
         # パスワード入力画面
         logger.info('Current URL: %s', self.driver.current_url)
         self.driver.find_element(
             By.XPATH, '//input[@name="mfid_user[password]"]').send_keys(self.__password)
         self.driver.find_element(By.CSS_SELECTOR, 'button#submitto').click()
-        time.sleep(SLEEP_SEC)
 
         self.driver.get(HISTORY_URL)
         time.sleep(SLEEP_SEC)
@@ -81,6 +79,8 @@ class MoneyforwardDriver:
             return True
 
     def __login_with_cookie(self) -> bool:
+        if self.__cookie_path is None:
+            return False
         if (not self.__cookie_path.exists()):
             logger.info('Cookie not exists.')
             return False
@@ -150,7 +150,7 @@ class MoneyforwardDriver:
         time.sleep(SLEEP_SEC)
         return
 
-    def fetch_payments_on(self, year: int, month: int) -> pd.DataFrame:
+    def fetch_monthly_expenses(self, year: int, month: int) -> pd.DataFrame:
         """指定した月の項目ごとの支出を取得する
 
         Args:
@@ -160,15 +160,18 @@ class MoneyforwardDriver:
         Returns:
             pd.DataFrame: 支出項目のテーブル
         """
+        target_date = self.__validate_date(year, month)
+        if target_date is None:
+            return None
+
         self.driver.get(SUMMARY_URL)
         time.sleep(SLEEP_SEC)
-        target_date = datetime.datetime(year, month, 1).strftime('%Y/%m/%d')
         self.__select_month(target_date)
-        table = self.__fetch_monthly_payment_table()
+        table = self.__fetch_monthly_expenses_table()
         formatted_table = self.__format__table(table, self.__get_date())
         return formatted_table
 
-    def fetch_payments_from(self, year: int, month: int) -> pd.DataFrame:
+    def fetch_monthly_expenses_from(self, year: int, month: int) -> pd.DataFrame:
         """指定した月から現在までの項目ごとの支出を取得する
 
         Args:
@@ -178,14 +181,17 @@ class MoneyforwardDriver:
         Returns:
             pd.DataFrame: 支出項目のテーブル
         """
+        target_date = self.__validate_date(year, month)
+        if target_date is None:
+            return None
+
         self.driver.get(SUMMARY_URL)
         time.sleep(SLEEP_SEC)
-        target_date = datetime.datetime(year, month, 1).strftime('%Y/%m/%d')
         concatted_table = None
         while True:
             displayed_date = self.__get_date()
             logger.info('Fetching payments table on %s.', displayed_date)
-            table = self.__fetch_monthly_payment_table()
+            table = self.__fetch_monthly_expenses_table()
             formatted_table = self.__format__table(table, displayed_date)
             concatted_table = pd.concat([formatted_table, concatted_table])
             if displayed_date == target_date:
@@ -193,11 +199,23 @@ class MoneyforwardDriver:
             else:
                 try:
                     self.__get_previous_month_button().click()
-                except Exception as e:
-                    logger.error(e, file=sys.stderr)
+                except ElementClickInterceptedException as e:
+                    logger.warning(e, file=sys.stderr)
                     break
                 time.sleep(SLEEP_SEC)
         return concatted_table.reset_index(drop=True)
+
+    def __validate_date(self, year: int, month: int) -> str:
+        try:
+            date_in_str = datetime.datetime(
+                year, month, 1).strftime('%Y/%m/%d')
+        except ValueError as e:
+            logger.warning(e)
+            return None
+        if date_in_str > datetime.datetime.now():
+            logger.warning('The specified date must be before today.')
+            return None
+        return date_in_str
 
     def __select_month(self, target_date: str) -> bool:
         previous_month_button = self.__get_previous_month_button()
@@ -207,10 +225,10 @@ class MoneyforwardDriver:
                 return True
             try:
                 previous_month_button.click()
-            except Exception as e:
-                logger.error(e, file=sys.stderr)
+            except ElementClickInterceptedException as e:
+                logger.warning(e, file=sys.stderr)
                 return False
-            time.sleep(2)
+            time.sleep(SLEEP_SEC)
             displayed_date = self.__get_date()
 
     def __get_previous_month_button(self):
@@ -225,7 +243,7 @@ class MoneyforwardDriver:
         else:
             return None
 
-    def __fetch_monthly_payment_table(self) -> pd.DataFrame:
+    def __fetch_monthly_expenses_table(self) -> pd.DataFrame:
         elm = self.driver.find_element(
             By.XPATH, '//*[@id="cache-flow"]/div[3]/table')
         html = elm.get_attribute("outerHTML")
