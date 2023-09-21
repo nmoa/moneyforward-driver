@@ -82,7 +82,7 @@ class MoneyforwardDriver:
         if self.__cookie_path is None:
             return False
         if (not self.__cookie_path.exists()):
-            logger.info('Cookie not exists.')
+            logger.info('Cookie does not exist.')
             return False
 
         # Cookieの復元
@@ -199,6 +199,7 @@ class MoneyforwardDriver:
             else:
                 try:
                     self.__get_previous_month_button().click()
+                # 非プレミアムで1年以上前に戻るとクリックできなくなる
                 except ElementClickInterceptedException as e:
                     logger.warning(e, file=sys.stderr)
                     break
@@ -257,14 +258,14 @@ class MoneyforwardDriver:
         [項目](この場合"食費")を取得する。
         それ以外の行では項目名を[小項目], 金額を[金額]として取得する。
 
-        項目	金額	割合
-        食費 合計	19292	79.31%
-        食料品	16267	66.88%
-        外食	3025	12.44%
-        日用品 合計	4232	17.40%
-        ドラッグストア	4232	17.40%
-        衣服・美容 合計	800	3.29%
-        衣服	800	3.29%
+        項目          金額
+        食費 合計      19292
+        食料品        16267
+        外食          3025
+        日用品 合計    4232
+        ドラッグストア  4232
+        衣服・美容 合計 800
+        衣服          800
 
         Args:
             df (pd.DataFrame): 収支内訳から取得したテーブル
