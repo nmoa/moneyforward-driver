@@ -10,6 +10,8 @@ from logzero import logger
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import ElementClickInterceptedException
 import pandas as pd
+from io import StringIO
+from typing import List
 from . import chromedriver
 
 SLEEP_SEC = 2
@@ -167,9 +169,19 @@ class MoneyforwardDriver:
         self.driver.get(SUMMARY_URL)
         time.sleep(SLEEP_SEC)
         self.__select_month(target_date)
-        table = self.__fetch_monthly_expenses_table()
-        formatted_table = self.__format__table(table, self.__get_date())
-        return formatted_table
+        return self.__read_monthly_expenses_table()
+
+    def fetch_monthly_income_and_expenses(self, year: int, month: int) -> List[pd.DataFrame]:
+        target_date = self.__validate_date(year, month)
+        if target_date is None:
+            return None
+
+        self.driver.get(SUMMARY_URL)
+        time.sleep(SLEEP_SEC)
+        self.__select_month(target_date)
+        expenses = self.__read_monthly_expenses_table()
+        income = self.__read_monthly_income()
+        return [income, expenses]
 
     def fetch_monthly_expenses_from(self, year: int, month: int) -> pd.DataFrame:
         """指定した月から現在までの項目ごとの支出を取得する
@@ -191,8 +203,7 @@ class MoneyforwardDriver:
         while True:
             displayed_date = self.__get_date()
             logger.info('Fetching payments table on %s.', displayed_date)
-            table = self.__fetch_monthly_expenses_table()
-            formatted_table = self.__format__table(table, displayed_date)
+            formatted_table = self.__read_monthly_expenses_table()
             concatted_table = pd.concat([formatted_table, concatted_table])
             if displayed_date == target_date:
                 break
@@ -208,15 +219,14 @@ class MoneyforwardDriver:
 
     def __validate_date(self, year: int, month: int) -> str:
         try:
-            date_in_str = datetime.datetime(
-                year, month, 1).strftime('%Y/%m/%d')
+            input_date = datetime.date(year, month, 1)
         except ValueError as e:
             logger.warning(e)
             return None
-        if date_in_str > datetime.datetime.now():
+        if input_date > datetime.date.today():
             logger.warning('The specified date must be before today.')
             return None
-        return date_in_str
+        return input_date.strftime('%Y/%m/%d')
 
     def __select_month(self, target_date: str) -> bool:
         previous_month_button = self.__get_previous_month_button()
@@ -244,12 +254,25 @@ class MoneyforwardDriver:
         else:
             return None
 
-    def __fetch_monthly_expenses_table(self) -> pd.DataFrame:
+    def __read_monthly_expenses_table(self) -> pd.DataFrame:
         elm = self.driver.find_element(
             By.XPATH, '//*[@id="cache-flow"]/div[3]/table')
-        html = elm.get_attribute("outerHTML")
-        df = pd.read_html(html.replace('円', ''), thousands=',')
-        return df[1]
+        table_html = elm.get_attribute("outerHTML")
+        df = pd.read_html(StringIO(table_html.replace('円', '')), thousands=',')
+        formatted_table = self.__format__table(df[1], self.__get_date())
+        return formatted_table
+
+    def __read_monthly_income(self) -> pd.DataFrame:
+        elm = self.driver.find_element(
+            By.XPATH, '//*[@id="monthly_total_table"]')
+        table_html = elm.get_attribute("outerHTML")
+        df = pd.read_html(
+            StringIO(table_html.replace('円', '')), thousands=',')[0]
+        income = df['当月収入'][0]
+        displayed_date = self.__get_date()
+        income_df = pd.DataFrame(
+            [[displayed_date, income]], columns=['日付', '収入'])
+        return income_df
 
     def __format__table(self, df: pd.DataFrame, date: str) -> pd.DataFrame:
         """収支内訳から取得したテーブルを整形する
