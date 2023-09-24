@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*-coding:utf-8 -*-
 
+import os
+import sys
 import datetime
 import time
 import pickle
-import sys
 from pathlib import Path
 from logzero import logger
 from selenium.webdriver.common.by import By
@@ -20,19 +21,14 @@ SUMMARY_URL = 'https://moneyforward.com/cf/summary'
 
 
 class MoneyforwardDriver:
-    def __init__(self, mail: str,
-                 password: str,
-                 cookie_path: str = '',
-                 download_path: str = '',
-                 debug: bool = False):
+    def __init__(self, cookie_path: str = '', download_path: str = '', debug: bool = False):
 
-        download_dir_verified = download_path if Path(
-            download_path).is_dir() else ''
+        download_dir_verified = download_path \
+            if Path(download_path).is_dir() \
+            else ''
         self.driver = chromedriver.init(
             headless=(not debug), download_dir=download_dir_verified)
         self.driver.implicitly_wait(10)
-        self.__mail = mail
-        self.__password = password
         self.__cookie_path = Path(cookie_path) if cookie_path else None
         self.__download_dir = download_dir_verified
         return
@@ -55,18 +51,22 @@ class MoneyforwardDriver:
         return is_success
 
     def __login_with_email(self) -> bool:
+        if (not os.environ['MF_EMAIL']) or (not os.environ['MF_PASSWORD']):
+            logger.error('MF_EMAIL or MF_PASSWORD is not set.')
+            return False
+
         self.driver.get('https://moneyforward.com/sign_in')
 
         # メールアドレス入力画面
         logger.info('Current URL: %s', self.driver.current_url)
         self.driver.find_element(
-            By.XPATH, '//input[@name="mfid_user[email]"]').send_keys(self.__mail)
+            By.XPATH, '//input[@name="mfid_user[email]"]').send_keys(os.environ['MF_EMAIL'])
         self.driver.find_element(By.CSS_SELECTOR, 'button#submitto').click()
 
         # パスワード入力画面
         logger.info('Current URL: %s', self.driver.current_url)
         self.driver.find_element(
-            By.XPATH, '//input[@name="mfid_user[password]"]').send_keys(self.__password)
+            By.XPATH, '//input[@name="mfid_user[password]"]').send_keys(os.environ['MF_PASSWORD'])
         self.driver.find_element(By.CSS_SELECTOR, 'button#submitto').click()
 
         self.driver.get(HISTORY_URL)
