@@ -16,6 +16,8 @@ from typing import List
 from . import chromedriver
 
 SLEEP_SEC = 2
+HOME_URL = 'https://moneyforward.com/'
+SIGN_IN_URL = 'https://moneyforward.com/sign_in'
 HISTORY_URL = 'https://moneyforward.com/bs/history'
 SUMMARY_URL = 'https://moneyforward.com/cf/summary'
 
@@ -55,7 +57,7 @@ class MoneyforwardDriver:
             logger.error('MF_EMAIL or MF_PASSWORD is not set.')
             return False
 
-        self.driver.get('https://moneyforward.com/sign_in')
+        self.driver.get(SIGN_IN_URL)
 
         # メールアドレス入力画面
         logger.info('Current URL: %s', self.driver.current_url)
@@ -169,9 +171,18 @@ class MoneyforwardDriver:
         self.driver.get(SUMMARY_URL)
         time.sleep(SLEEP_SEC)
         self.__select_month(target_date)
-        return self.__read_monthly_expenses_table()
+        return self.__read_monthly_expenses()
 
     def fetch_monthly_income_and_expenses(self, year: int, month: int) -> List[pd.DataFrame]:
+        """指定した月の収入と支出を取得する
+
+        Args:
+            year (int): 年
+            month (int): 月
+
+        Returns:
+            List[pd.DataFrame]: 収入と支出のテーブル
+        """
         target_date = self.__validate_date(year, month)
         if target_date is None:
             return None
@@ -179,7 +190,7 @@ class MoneyforwardDriver:
         self.driver.get(SUMMARY_URL)
         time.sleep(SLEEP_SEC)
         self.__select_month(target_date)
-        expenses = self.__read_monthly_expenses_table()
+        expenses = self.__read_monthly_expenses()
         income = self.__read_monthly_income()
         return [income, expenses]
 
@@ -202,8 +213,8 @@ class MoneyforwardDriver:
         concatted_table = None
         while True:
             displayed_date = self.__get_date()
-            logger.info('Fetching payments table on %s.', displayed_date)
-            formatted_table = self.__read_monthly_expenses_table()
+            logger.info('Fetching expenses on %s.', displayed_date)
+            formatted_table = self.__read_monthly_expenses()
             concatted_table = pd.concat([formatted_table, concatted_table])
             if displayed_date == target_date:
                 break
@@ -216,6 +227,45 @@ class MoneyforwardDriver:
                     break
                 time.sleep(SLEEP_SEC)
         return concatted_table.reset_index(drop=True)
+
+    def fetch_monthly_income_and_expenses_from(self, year: int, month: int) -> List[pd.DataFrame]:
+        """指定した月から現在までの収入と支出を取得する
+
+        Args:
+            year (int): 年
+            month (int): 月
+
+        Returns:
+            List[pd.DataFrame]: 収入と支出のテーブル
+        """
+        target_date = self.__validate_date(year, month)
+        if target_date is None:
+            return None
+
+        self.driver.get(SUMMARY_URL)
+        time.sleep(SLEEP_SEC)
+        concatted_expenses_table = None
+        concatted_income_table = None
+        while True:
+            displayed_date = self.__get_date()
+            logger.info('Fetching income and expenses on %s.', displayed_date)
+            income = self.__read_monthly_income()
+            expenses = self.__read_monthly_expenses()
+            concatted_expenses_table = pd.concat(
+                [expenses, concatted_expenses_table])
+            concatted_income_table = pd.concat(
+                [income, concatted_income_table])
+            if displayed_date == target_date:
+                break
+            else:
+                try:
+                    self.__get_previous_month_button().click()
+                # 非プレミアムで1年以上前に戻るとクリックできなくなる
+                except ElementClickInterceptedException as e:
+                    logger.warning(e, file=sys.stderr)
+                    break
+                time.sleep(SLEEP_SEC)
+        return [concatted_income_table.reset_index(drop=True), concatted_expenses_table.reset_index(drop=True)]
 
     def __validate_date(self, year: int, month: int) -> str:
         try:
@@ -254,7 +304,7 @@ class MoneyforwardDriver:
         else:
             return None
 
-    def __read_monthly_expenses_table(self) -> pd.DataFrame:
+    def __read_monthly_expenses(self) -> pd.DataFrame:
         elm = self.driver.find_element(
             By.XPATH, '//*[@id="cache-flow"]/div[3]/table')
         table_html = elm.get_attribute("outerHTML")
