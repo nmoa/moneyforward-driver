@@ -12,8 +12,11 @@ def is_raspberrypi() -> bool:
 
 
 def init(headless: bool = True, download_dir: str = '') -> webdriver.Chrome:
-    # Reference: https://stackoverflow.com/questions/70886717/chromedriver-for-linux32-does-not-exist-python-selenium-chromedriver
     options = Options()
+    options.add_argument(
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+        '(KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36')
+
     if headless:
         options.add_argument("--headless")
         options.add_argument("--disable-gpu")
@@ -30,7 +33,6 @@ def init(headless: bool = True, download_dir: str = '') -> webdriver.Chrome:
             options=options
         )
     else:
-        # service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(options=options)
 
     return driver

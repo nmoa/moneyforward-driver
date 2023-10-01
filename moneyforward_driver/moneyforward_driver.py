@@ -162,7 +162,7 @@ class MoneyforwardDriver:
             month (int): 月
 
         Returns:
-            pd.DataFrame: 支出項目のテーブル
+            pd.DataFrame: 支出項目のテーブル。該当月のデータがない場合はNone
         """
         target_date = self.__validate_date(year, month)
         if target_date is None:
@@ -181,7 +181,7 @@ class MoneyforwardDriver:
             month (int): 月
 
         Returns:
-            List[pd.DataFrame]: 収入と支出のテーブル
+            List[pd.DataFrame]: 収入と支出のテーブル。該当月の支出データがない場合、支出はNoneとなる
         """
         target_date = self.__validate_date(year, month)
         if target_date is None:
@@ -215,17 +215,19 @@ class MoneyforwardDriver:
             displayed_date = self.__get_date()
             logger.info('Fetching expenses on %s.', displayed_date)
             formatted_table = self.__read_monthly_expenses()
-            concatted_table = pd.concat([formatted_table, concatted_table])
+            concatted_table = pd.concat(
+                [formatted_table, concatted_table]) if formatted_table is not None else concatted_table
+
             if displayed_date == target_date:
                 break
-            else:
-                try:
-                    self.__get_previous_month_button().click()
-                # 非プレミアムで1年以上前に戻るとクリックできなくなる
-                except ElementClickInterceptedException as e:
-                    logger.warning(e, file=sys.stderr)
-                    break
-                time.sleep(SLEEP_SEC)
+
+            try:
+                self.__get_previous_month_button().click()
+            # 非プレミアムで1年以上前に戻るとクリックできなくなる
+            except ElementClickInterceptedException as e:
+                logger.warning(e, file=sys.stderr)
+                break
+            time.sleep(SLEEP_SEC)
         return concatted_table.reset_index(drop=True)
 
     def fetch_monthly_income_and_expenses_from(self, year: int, month: int) -> List[pd.DataFrame]:
@@ -249,22 +251,25 @@ class MoneyforwardDriver:
         while True:
             displayed_date = self.__get_date()
             logger.info('Fetching income and expenses on %s.', displayed_date)
+
             income = self.__read_monthly_income()
-            expenses = self.__read_monthly_expenses()
-            concatted_expenses_table = pd.concat(
-                [expenses, concatted_expenses_table])
             concatted_income_table = pd.concat(
                 [income, concatted_income_table])
+
+            expenses = self.__read_monthly_expenses()
+            concatted_expenses_table = pd.concat(
+                [expenses, concatted_expenses_table]) if expenses is not None else concatted_expenses_table
+
             if displayed_date == target_date:
                 break
-            else:
-                try:
-                    self.__get_previous_month_button().click()
-                # 非プレミアムで1年以上前に戻るとクリックできなくなる
-                except ElementClickInterceptedException as e:
-                    logger.warning(e, file=sys.stderr)
-                    break
-                time.sleep(SLEEP_SEC)
+
+            try:
+                self.__get_previous_month_button().click()
+            # 非プレミアムで1年以上前に戻るとクリックできなくなる
+            except ElementClickInterceptedException as e:
+                logger.warning(e, file=sys.stderr)
+                break
+            time.sleep(SLEEP_SEC)
         return [concatted_income_table.reset_index(drop=True), concatted_expenses_table.reset_index(drop=True)]
 
     def __validate_date(self, year: int, month: int) -> str:
@@ -305,12 +310,17 @@ class MoneyforwardDriver:
             return None
 
     def __read_monthly_expenses(self) -> pd.DataFrame:
+
         elm = self.driver.find_element(
             By.XPATH, '//*[@id="cache-flow"]/div[3]/table')
         table_html = elm.get_attribute("outerHTML")
         df = pd.read_html(StringIO(table_html.replace('円', '')), thousands=',')
-        formatted_table = self.__format__table(df[1], self.__get_date())
-        return formatted_table
+
+        if len(df) > 1:  # 該当月の支出データがある場合
+            formatted_table = self.__format__table(df[1], self.__get_date())
+            return formatted_table
+        else:   # 該当月の支出データがない場合
+            return None
 
     def __read_monthly_income(self) -> pd.DataFrame:
         elm = self.driver.find_element(
