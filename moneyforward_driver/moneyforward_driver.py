@@ -154,25 +154,6 @@ class MoneyforwardDriver:
         time.sleep(SLEEP_SEC)
         return
 
-    def fetch_monthly_expenses(self, year: int, month: int) -> pd.DataFrame:
-        """指定した月の項目ごとの支出を取得する
-
-        Args:
-            year (int): 年
-            month (int): 月
-
-        Returns:
-            pd.DataFrame: 支出項目のテーブル。該当月のデータがない場合はNone
-        """
-        target_date = self.__validate_date(year, month)
-        if target_date is None:
-            return None
-
-        self.driver.get(SUMMARY_URL)
-        time.sleep(SLEEP_SEC)
-        self.__select_month(target_date)
-        return self.__read_monthly_expenses()
-
     def fetch_monthly_income_and_expenses(self, year: int, month: int) -> List[pd.DataFrame]:
         """指定した月の収入と支出を取得する
 
@@ -194,43 +175,7 @@ class MoneyforwardDriver:
         income = self.__read_monthly_income()
         return [income, expenses]
 
-    def fetch_monthly_expenses_from(self, year: int, month: int) -> pd.DataFrame:
-        """指定した月から現在までの項目ごとの支出を取得する
-
-        Args:
-            year (int): 年
-            month (int): 月
-
-        Returns:
-            pd.DataFrame: 支出項目のテーブル
-        """
-        target_date = self.__validate_date(year, month)
-        if target_date is None:
-            return None
-
-        self.driver.get(SUMMARY_URL)
-        time.sleep(SLEEP_SEC)
-        concatted_table = None
-        while True:
-            displayed_date = self.__get_date()
-            logger.info('Fetching expenses on %s.', displayed_date)
-            formatted_table = self.__read_monthly_expenses()
-            concatted_table = pd.concat(
-                [formatted_table, concatted_table]) if formatted_table is not None else concatted_table
-
-            if displayed_date == target_date:
-                break
-
-            try:
-                self.__get_previous_month_button().click()
-            # 非プレミアムで1年以上前に戻るとクリックできなくなる
-            except ElementClickInterceptedException as e:
-                logger.warning(e, file=sys.stderr)
-                break
-            time.sleep(SLEEP_SEC)
-        return concatted_table.reset_index(drop=True)
-
-    def fetch_monthly_income_and_expenses_from(self, year: int, month: int) -> List[pd.DataFrame]:
+    def fetch_monthly_income_and_expenses_since(self, year: int, month: int) -> List[pd.DataFrame]:
         """指定した月から現在までの収入と支出を取得する
 
         Args:
@@ -239,6 +184,8 @@ class MoneyforwardDriver:
 
         Returns:
             List[pd.DataFrame]: 収入と支出のテーブル
+                - 0: 収入
+                - 1: 支出
         """
         target_date = self.__validate_date(year, month)
         if target_date is None:
