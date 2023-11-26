@@ -7,18 +7,19 @@ import datetime
 import time
 import pickle
 from pathlib import Path
-from logzero import logger
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import ElementClickInterceptedException
-import pandas as pd
 from io import StringIO
 from typing import List
+from logzero import logger
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import WebDriverException, ElementClickInterceptedException
+import pandas as pd
 from . import chromedriver
 
 SLEEP_SEC = 2
 HOME_URL = 'https://moneyforward.com/'
 SIGN_IN_URL = 'https://moneyforward.com/sign_in'
 HISTORY_URL = 'https://moneyforward.com/bs/history'
+EXPENSES_URL = 'https://moneyforward.com/cf'
 SUMMARY_URL = 'https://moneyforward.com/cf/summary'
 
 
@@ -122,12 +123,77 @@ class MoneyforwardDriver:
                 logger.info('Updating account... [%d/%d]', i+1, len(elms))
                 elm.click()
                 time.sleep(0.5)
-        except Exception as e:
+        except WebDriverException as e:
             logger.error(e, file=sys.stderr)
         else:
             logger.info('Update finished.')
         time.sleep(SLEEP_SEC)
         return
+
+    def input_expense(self, category: str, subcategory: str, date: str, amount: int, content: str = ''):
+        """支出を入力する
+
+        Args:
+            category (str): 大項目
+            subcategory (str): 中項目
+            date (str): 支出日
+            amount (int): 金額
+            content (str, optional): 内容(任意). Defaults to ''.
+        """
+        if self.driver.current_url != EXPENSES_URL:
+            self.driver.get(EXPENSES_URL)
+
+        try:
+            # 入力欄を開く
+            self.driver.find_element(
+                By.CSS_SELECTOR, 'button.cf-new-btn.btn.modal-switch.btn-warning').click()
+            # 入力
+            self.driver.find_element(
+                By.XPATH, '//*[@id="appendedPrependedInput"]').send_keys(amount)
+            self.__select_category(category)
+            self.__select_subcategory(subcategory)
+            self.__input_date(date)
+            if content:
+                self.driver.find_element(
+                    By.XPATH, '//*[@id="js-content-field"]').send_keys(content)
+            # 送信
+            self.driver.find_element(
+                By.XPATH, '//*[@id="submit-button"]').click()
+            # 閉じる
+            self.driver.find_element(
+                By.XPATH, '//*[@id="cancel-button"]').click()
+        except WebDriverException as e:
+            logger.error(e)
+            return False
+        except IndexError:
+            logger.error(
+                "The specified categories are invalid. Category: %s, Subcategory: %s", category, subcategory)
+        else:
+            logger.info('Successfully input expense data: %s %s \\%d on %s',
+                        category, subcategory, amount, date)
+            return True
+
+    def __select_category(self, category: str):
+        self.driver.find_element(
+            By.XPATH, '//*[@id="js-large-category-selected"]').click()
+        li = self.driver.find_element(
+            By.CSS_SELECTOR, '.dropdown-menu.main_menu.minus')
+        [a for a in li.find_elements(By.CLASS_NAME, "l_c_name") if a.get_attribute(
+            "innerHTML") == category].pop().click()
+
+    def __select_subcategory(self, subcategory: str):
+        self.driver.find_element(
+            By.XPATH, '//*[@id="js-middle-category-selected"]').click()
+        li = self.driver.find_element(
+            By.CSS_SELECTOR, '.dropdown-menu.sub_menu')
+        [a for a in li.find_elements(By.CLASS_NAME, "m_c_name") if a.get_attribute(
+            "innerHTML") == subcategory].pop().click()
+
+    def __input_date(self, date: str):
+        elm_date_input = self.driver.find_element(
+            By.XPATH, '//*[@id="updated-at"]')
+        elm_date_input.clear()
+        elm_date_input.send_keys(date)
 
     def download_monthly_assets(self, year: int, month: int):
         """月次の資産をCSVファイルとしてダウンロードする
@@ -147,7 +213,7 @@ class MoneyforwardDriver:
             self.driver.get(
                 f'https://moneyforward.com/bs/history/list/{date}/monthly/csv')
             time.sleep(0.5)
-        except Exception as e:
+        except WebDriverException as e:
             logger.error(e)
         else:
             logger.info('Download completed.')
