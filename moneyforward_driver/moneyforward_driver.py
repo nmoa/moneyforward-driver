@@ -13,6 +13,7 @@ from logzero import logger
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import WebDriverException, ElementClickInterceptedException
 import pandas as pd
+from . import config
 from . import chromedriver
 
 SLEEP_SEC = 2
@@ -54,7 +55,7 @@ class MoneyforwardDriver:
         return is_success
 
     def __login_with_email(self) -> bool:
-        if (not os.environ['MF_EMAIL']) or (not os.environ['MF_PASSWORD']):
+        if (not config.MF_EMAIL) or (not config.MF_PASSWORD):
             logger.error('MF_EMAIL or MF_PASSWORD is not set.')
             return False
 
@@ -63,13 +64,13 @@ class MoneyforwardDriver:
         # メールアドレス入力画面
         logger.info('Current URL: %s', self.driver.current_url)
         self.driver.find_element(
-            By.XPATH, '//input[@name="mfid_user[email]"]').send_keys(os.environ['MF_EMAIL'])
+            By.XPATH, '//input[@name="mfid_user[email]"]').send_keys(config.MF_EMAIL)
         self.driver.find_element(By.CSS_SELECTOR, 'button#submitto').click()
 
         # パスワード入力画面
         logger.info('Current URL: %s', self.driver.current_url)
         self.driver.find_element(
-            By.XPATH, '//input[@name="mfid_user[password]"]').send_keys(os.environ['MF_PASSWORD'])
+            By.XPATH, '//input[@name="mfid_user[password]"]').send_keys(config.MF_PASSWORD)
         self.driver.find_element(By.CSS_SELECTOR, 'button#submitto').click()
 
         self.driver.get(HISTORY_URL)
@@ -168,6 +169,7 @@ class MoneyforwardDriver:
         except IndexError:
             logger.error(
                 "The specified categories are invalid. Category: %s, Subcategory: %s", category, subcategory)
+            return False
         else:
             logger.info('Successfully input expense data: %s %s \\%d on %s',
                         category, subcategory, amount, date)

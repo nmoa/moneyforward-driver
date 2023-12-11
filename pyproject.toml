@@ -4,16 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "moneyforward_driver"
-version = "0.0.1"
+version = "0.1.0"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.7"
 dependencies = [
+    "dotenv",
     "html5lib",
     "logzero",
     "lxml",
     "pandas",
     "pytest>=3.0.7",
     "selenium>=4.8.0",
-    # "webdriver-manager>=4.0.0",
 ]
