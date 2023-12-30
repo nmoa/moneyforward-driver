@@ -11,7 +11,7 @@ from io import StringIO
 from typing import List
 from logzero import logger
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import WebDriverException, ElementClickInterceptedException
+from selenium.common.exceptions import WebDriverException, ElementClickInterceptedException, StaleElementReferenceException
 import pandas as pd
 from . import config
 from . import chromedriver
@@ -124,7 +124,7 @@ class MoneyforwardDriver:
                 logger.info('Updating account... [%d/%d]', i+1, len(elms))
                 elm.click()
                 time.sleep(0.5)
-        except WebDriverException as e:
+        except (WebDriverException, StaleElementReferenceException) as e:
             logger.error(e, file=sys.stderr)
         else:
             logger.info('Update finished.')
