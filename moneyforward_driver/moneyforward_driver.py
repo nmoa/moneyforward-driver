@@ -116,19 +116,20 @@ class MoneyforwardDriver:
     def update(self) -> None:
         """すべての口座を更新する
         """
-        try:
-            self.driver.get('https://moneyforward.com/accounts')
-            elms = self.driver.find_elements(By.XPATH,
-                                             "//input[@data-disable-with='更新']")
-            for i, elm in enumerate(elms):
-                logger.info('Updating account... [%d/%d]', i+1, len(elms))
+        self.driver.get('https://moneyforward.com/accounts')
+        elms = self.driver.find_elements(By.XPATH,
+                                         "//input[@data-disable-with='更新']")
+        for i, elm in enumerate(elms):
+            logger.info('Updating account... [%d/%d]', i+1, len(elms))
+            try:
                 elm.click()
+            except StaleElementReferenceException as e:
+                logger.error(e, file=sys.stderr)
+                return
+            else:
                 time.sleep(0.5)
-        except (WebDriverException, StaleElementReferenceException) as e:
-            logger.error(e, file=sys.stderr)
-        else:
-            logger.info('Update finished.')
         time.sleep(SLEEP_SEC)
+        logger.info('Update finished.')
         return
 
     def input_expense(self, category: str, subcategory: str, date: str, amount: int, content: str = ''):
