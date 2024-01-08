@@ -17,11 +17,12 @@ from . import config
 from . import chromedriver
 
 SLEEP_SEC = 2
-HOME_URL = 'https://moneyforward.com/'
-SIGN_IN_URL = 'https://moneyforward.com/sign_in'
-HISTORY_URL = 'https://moneyforward.com/bs/history'
-EXPENSES_URL = 'https://moneyforward.com/cf'
-SUMMARY_URL = 'https://moneyforward.com/cf/summary'
+HOME_URL = 'https://moneyforward.com'
+SIGN_IN_URL = f'{HOME_URL}/sign_in'
+HISTORY_URL = f'{HOME_URL}/bs/history'
+EXPENSES_URL = f'{HOME_URL}/cf'
+SUMMARY_URL = f'{HOME_URL}/cf/summary'
+ACCOUNTS_URL = f'{HOME_URL}/accounts'
 
 
 class MoneyforwardDriver:
@@ -116,22 +117,26 @@ class MoneyforwardDriver:
     def update(self) -> None:
         """すべての口座を更新する
         """
-        UPDATE_INTERVAL_SEC = 3
+        UPDATE_INTERVAL_SEC = 0.5
 
-        self.driver.get('https://moneyforward.com/accounts')
-        elms = self.driver.find_elements(By.XPATH,
-                                         "//input[@data-disable-with='更新']")
-        for i, elm in enumerate(elms):
-            logger.info('Updating account... [%d/%d]', i+1, len(elms))
+        self.driver.get(ACCOUNTS_URL)
+        num_services = len(self.__get_services()) - 1
+        for i in range(1, num_services + 1):
             try:
-                elm.click()
-            except Exception as e:
-                logger.error(e, file=sys.stderr)
-                return
-            else:
-                time.sleep(UPDATE_INTERVAL_SEC)
-        time.sleep(SLEEP_SEC)
-        logger.info('Update finished.')
+                elms = self.__get_services()
+                elm = elms[i]
+                service_name = self.__extract_service_name(
+                    elm.find_element(By.CLASS_NAME, 'service').text)
+                status = elm.find_element(By.CLASS_NAME, 'account-status').text
+                if status == '正常':
+                    logger.info('%s を更新しています...', service_name)
+                    elm.find_element(
+                        By.XPATH, "//input[@data-disable-with='更新']").click()
+                    time.sleep(UPDATE_INTERVAL_SEC)
+                else:
+                    logger.info('%s の更新をスキップします(%s)', service_name, status)
+            except WebDriverException as e:
+                logger.error(e.msg)
         return
 
     def __extract_service_name(self, service_text: str) -> str:
@@ -140,6 +145,11 @@ class MoneyforwardDriver:
             return service_text[:index]
         else:
             return ""
+
+    def __get_services(self):
+        table = self.driver.find_elements(
+            By.XPATH, '//*[@id="account-table"]')
+        return table[1].find_elements(By.TAG_NAME, 'tr')
 
     def input_expense(self, category: str, subcategory: str, date: str, amount: int, content: str = ''):
         """支出を入力する
@@ -174,7 +184,7 @@ class MoneyforwardDriver:
             self.driver.find_element(
                 By.XPATH, '//*[@id="cancel-button"]').click()
         except WebDriverException as e:
-            logger.error(e)
+            logger.error(e.msg)
             return False
         except IndexError:
             logger.error(
@@ -226,7 +236,7 @@ class MoneyforwardDriver:
                 f'https://moneyforward.com/bs/history/list/{date}/monthly/csv')
             time.sleep(0.5)
         except WebDriverException as e:
-            logger.error(e)
+            logger.error(e.msg)
         else:
             logger.info('Download completed.')
         time.sleep(SLEEP_SEC)
