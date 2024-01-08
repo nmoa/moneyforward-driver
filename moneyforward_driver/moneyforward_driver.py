@@ -116,6 +116,8 @@ class MoneyforwardDriver:
     def update(self) -> None:
         """すべての口座を更新する
         """
+        UPDATE_INTERVAL_SEC = 3
+
         self.driver.get('https://moneyforward.com/accounts')
         elms = self.driver.find_elements(By.XPATH,
                                          "//input[@data-disable-with='更新']")
@@ -123,14 +125,21 @@ class MoneyforwardDriver:
             logger.info('Updating account... [%d/%d]', i+1, len(elms))
             try:
                 elm.click()
-            except StaleElementReferenceException as e:
+            except Exception as e:
                 logger.error(e, file=sys.stderr)
                 return
             else:
-                time.sleep(0.5)
+                time.sleep(UPDATE_INTERVAL_SEC)
         time.sleep(SLEEP_SEC)
         logger.info('Update finished.')
         return
+
+    def __extract_service_name(self, service_text: str) -> str:
+        index = service_text.find(" ( 本サイト )")
+        if index != -1:
+            return service_text[:index]
+        else:
+            return ""
 
     def input_expense(self, category: str, subcategory: str, date: str, amount: int, content: str = ''):
         """支出を入力する
