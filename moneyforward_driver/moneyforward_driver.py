@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*-coding:utf-8 -*-
 
-import os
 import sys
 import datetime
 import time
@@ -11,7 +10,7 @@ from io import StringIO
 from typing import List
 from logzero import logger
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import WebDriverException, ElementClickInterceptedException, StaleElementReferenceException
+from selenium.common.exceptions import WebDriverException, ElementClickInterceptedException
 import pandas as pd
 from . import config
 from . import chromedriver
@@ -80,7 +79,7 @@ class MoneyforwardDriver:
             return False
         else:
             # Cookieに保存する
-            if (self.__cookie_path):
+            if self.__cookie_path:
                 pickle.dump(self.driver.get_cookies(),
                             open(self.__cookie_path, 'wb'))
             return True
@@ -88,7 +87,7 @@ class MoneyforwardDriver:
     def __login_with_cookie(self) -> bool:
         if self.__cookie_path is None:
             return False
-        if (not self.__cookie_path.exists()):
+        if not self.__cookie_path.exists():
             logger.info('Cookie does not exist.')
             return False
 
@@ -112,7 +111,7 @@ class MoneyforwardDriver:
         self.driver.get(HISTORY_URL)
         time.sleep(SLEEP_SEC)
         logger.info('Current URL: %s', self.driver.current_url)
-        return (self.driver.current_url == HISTORY_URL)
+        return self.driver.current_url == HISTORY_URL
 
     def update(self) -> None:
         """すべての口座を更新する
@@ -120,18 +119,18 @@ class MoneyforwardDriver:
         UPDATE_INTERVAL_SEC = 0.5
 
         self.driver.get(ACCOUNTS_URL)
-        num_services = len(self.__get_services()) - 1
-        for i in range(1, num_services + 1):
+        num_services = len(self.get_services())
+        buttons = self.driver.find_elements(
+            By.XPATH, "//input[@data-disable-with='更新']")
+        for i in range(num_services):
             try:
-                elms = self.__get_services()
-                elm = elms[i]
+                elm = self.get_services()[i]
                 service_name = self.__extract_service_name(
                     elm.find_element(By.CLASS_NAME, 'service').text)
                 status = elm.find_element(By.CLASS_NAME, 'account-status').text
                 if status == '正常':
                     logger.info('%s を更新しています...', service_name)
-                    elm.find_element(
-                        By.XPATH, "//input[@data-disable-with='更新']").click()
+                    buttons[i].click()
                     time.sleep(UPDATE_INTERVAL_SEC)
                 else:
                     logger.info('%s の更新をスキップします(%s)', service_name, status)
@@ -146,10 +145,10 @@ class MoneyforwardDriver:
         else:
             return ""
 
-    def __get_services(self):
+    def get_services(self):
         table = self.driver.find_elements(
             By.XPATH, '//*[@id="account-table"]')
-        return table[1].find_elements(By.TAG_NAME, 'tr')
+        return table[1].find_elements(By.TAG_NAME, 'tr')[1:]
 
     def input_expense(self, category: str, subcategory: str, date: str, amount: int, content: str = ''):
         """支出を入力する
@@ -226,7 +225,7 @@ class MoneyforwardDriver:
             year (int): 年
             month (int): 月
         """
-        if (not self.__download_dir):
+        if not self.__download_dir:
             logger.error('The download directory is invalid.')
             return
         logger.info('Downloading an asset data for %d/%d.', year, month)
@@ -321,8 +320,8 @@ class MoneyforwardDriver:
     def __select_month(self, target_date: str) -> bool:
         previous_month_button = self.__get_previous_month_button()
         displayed_date = self.__get_date()
-        while (True):
-            if (displayed_date == target_date):
+        while True:
+            if displayed_date == target_date:
                 return True
             try:
                 previous_month_button.click()
