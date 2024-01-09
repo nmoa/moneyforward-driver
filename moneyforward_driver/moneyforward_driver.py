@@ -119,18 +119,16 @@ class MoneyforwardDriver:
         UPDATE_INTERVAL_SEC = 0.5
 
         self.driver.get(ACCOUNTS_URL)
-        num_services = len(self.get_services())
-        buttons = self.driver.find_elements(
-            By.XPATH, "//input[@data-disable-with='更新']")
-        for i in range(num_services):
+        num_services = len(self.__get_services())
+        for num in range(num_services):
             try:
-                elm = self.get_services()[i]
+                elm = self.__get_services()[num]
                 service_name = self.__extract_service_name(
                     elm.find_element(By.CLASS_NAME, 'service').text)
                 status = elm.find_element(By.CLASS_NAME, 'account-status').text
                 if status == '正常':
                     logger.info('%s を更新しています...', service_name)
-                    buttons[i].click()
+                    self.__update_service(num)
                     time.sleep(UPDATE_INTERVAL_SEC)
                 else:
                     logger.info('%s の更新をスキップします(%s)', service_name, status)
@@ -145,10 +143,16 @@ class MoneyforwardDriver:
         else:
             return ""
 
-    def get_services(self):
+    def __get_services(self):
         table = self.driver.find_elements(
             By.XPATH, '//*[@id="account-table"]')
         return table[1].find_elements(By.TAG_NAME, 'tr')[1:]
+
+    def __update_service(self, num):
+        elms = self.driver.find_elements(
+            By.CSS_SELECTOR, 'input.btn[type="submit"][value="更新"]')
+        buttons = [elm for elm in elms if elm.accessible_name == '更新']
+        buttons[num].click()
 
     def input_expense(self, category: str, subcategory: str, date: str, amount: int, content: str = ''):
         """支出を入力する
