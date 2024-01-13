@@ -10,6 +10,8 @@ from io import StringIO
 from typing import List
 from logzero import logger
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import WebDriverException, ElementClickInterceptedException
 import pandas as pd
 from . import config
@@ -35,6 +37,7 @@ class MoneyforwardDriver:
         self.driver.implicitly_wait(10)
         self.__cookie_path = Path(cookie_path) if cookie_path else None
         self.__download_dir = download_dir_verified
+        self.__wait = WebDriverWait(driver=self.driver, timeout=60)
         return
 
     def __del__(self):
@@ -122,14 +125,14 @@ class MoneyforwardDriver:
         services_names = self.__get_service_names()
         for num, service_name in enumerate(services_names):
             try:
-                elm = self.__get_services()[num]
-                status = elm.find_element(By.CLASS_NAME, 'account-status').text
+                status = self.__get_services()[num].find_element(
+                    By.CLASS_NAME, 'account-status').text
                 if status == '正常':
                     logger.info('%s を更新しています...', service_name)
                     self.__update_service(num)
                     time.sleep(UPDATE_INTERVAL_SEC)
                 else:
-                    logger.info('%s の更新をスキップします(%s)', service_name, status)
+                    logger.info('%s の更新をスキップします。%s', service_name, status)
             except WebDriverException as e:
                 logger.error(e.msg)
         return
@@ -152,6 +155,7 @@ class MoneyforwardDriver:
         elms = self.driver.find_elements(
             By.CSS_SELECTOR, 'input.btn[type="submit"][value="更新"]')
         buttons = [elm for elm in elms if elm.accessible_name == '更新']
+        self.__wait.until(EC.element_to_be_clickable(buttons[num]))
         buttons[num].click()
 
     def input_expense(self, category: str, subcategory: str, date: str, amount: int, content: str = ''):
