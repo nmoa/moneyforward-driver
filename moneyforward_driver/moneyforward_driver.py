@@ -51,10 +51,6 @@ class MoneyforwardDriver:
         """
         logger.info('Trying to login with cookie.')
         is_success = self.__login_with_cookie() or self.__login_with_email()
-        if is_success:
-            logger.info('Login succeeded.')
-        else:
-            logger.error('Login Failed.')
         return is_success
 
     def __login_with_email(self) -> bool:
@@ -76,16 +72,18 @@ class MoneyforwardDriver:
             By.XPATH, '//input[@name="mfid_user[password]"]').send_keys(config.MF_PASSWORD)
         self.driver.find_element(By.CSS_SELECTOR, 'button#submitto').click()
 
-        self.driver.get(HISTORY_URL)
-        time.sleep(SLEEP_SEC)
-        if self.driver.current_url != HISTORY_URL:
-            return False
-        else:
+        # moneyforwardのtopページが出ているはず
+        self.__wait.until(EC.presence_of_element_located)
+        if self.driver.current_url == f'{HOME_URL}/':
+            logger.info('Login with email succeeded.')
             # Cookieに保存する
             if self.__cookie_path:
                 pickle.dump(self.driver.get_cookies(),
                             open(self.__cookie_path, 'wb'))
             return True
+        else:
+            logger.warning('Login with email failed.')
+            return False
 
     def __login_with_cookie(self) -> bool:
         if self.__cookie_path is None:
@@ -105,16 +103,17 @@ class MoneyforwardDriver:
 
         # ログイン実行
         self.driver.get(HISTORY_URL)
-        time.sleep(SLEEP_SEC)
-        # ここではmoneyforwardのtopページが出る
+        self.__wait.until(EC.presence_of_element_located)
         logger.info('Current URL: %s', self.driver.current_url)
 
-        # ログインの確認のため、資産推移のページに遷移する。
-        # ログインに失敗している場合、資産推移のページが表示されない。
-        self.driver.get(HISTORY_URL)
-        time.sleep(SLEEP_SEC)
-        logger.info('Current URL: %s', self.driver.current_url)
-        return self.driver.current_url == HISTORY_URL
+        # moneyforwardのtopページが出ているはず
+        self.__wait.until(EC.presence_of_element_located)
+        if self.driver.current_url == f'{HOME_URL}/':
+            logger.info('Login with cookie succeeded.')
+            return True
+        else:
+            logger.warning('Login with cookie failed.')
+            return False
 
     def update(self) -> None:
         """すべての口座を更新する
