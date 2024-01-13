@@ -119,12 +119,10 @@ class MoneyforwardDriver:
         UPDATE_INTERVAL_SEC = 0.5
 
         self.driver.get(ACCOUNTS_URL)
-        num_services = len(self.__get_services())
-        for num in range(num_services):
+        services_names = self.__get_service_names()
+        for num, service_name in enumerate(services_names):
             try:
                 elm = self.__get_services()[num]
-                service_name = self.__extract_service_name(
-                    elm.find_element(By.CLASS_NAME, 'service').text)
                 status = elm.find_element(By.CLASS_NAME, 'account-status').text
                 if status == '正常':
                     logger.info('%s を更新しています...', service_name)
@@ -136,12 +134,14 @@ class MoneyforwardDriver:
                 logger.error(e.msg)
         return
 
-    def __extract_service_name(self, service_text: str) -> str:
-        index = service_text.find(" ( 本サイト )")
-        if index != -1:
-            return service_text[:index]
-        else:
-            return ""
+    def __get_service_names(self) -> List[str]:
+        def extract(raw_text):
+            index = raw_text.find(" ( 本サイト )")
+            if index != -1:
+                return raw_text[:index]
+
+        elms = self.driver.find_elements(By.CSS_SELECTOR, 'td.service')
+        return [extract(elm.text) for elm in elms]
 
     def __get_services(self):
         table = self.driver.find_elements(
