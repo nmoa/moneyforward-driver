@@ -49,7 +49,6 @@ class MoneyforwardDriver:
         Returns:
             bool: ログインに成功した場合True, 失敗した場合False
         """
-        logger.info('Trying to login with cookie.')
         is_success = self.__login_with_cookie() or self.__login_with_email()
         return is_success
 
@@ -58,22 +57,23 @@ class MoneyforwardDriver:
             logger.error('MF_EMAIL or MF_PASSWORD is not set.')
             return False
 
+        logger.info('Trying to login with email and password.')
         self.driver.get(SIGN_IN_URL)
 
         # メールアドレス入力画面
-        logger.info('Current URL: %s', self.driver.current_url)
         self.driver.find_element(
             By.XPATH, '//input[@name="mfid_user[email]"]').send_keys(config.MF_EMAIL)
         self.driver.find_element(By.CSS_SELECTOR, 'button#submitto').click()
 
         # パスワード入力画面
-        logger.info('Current URL: %s', self.driver.current_url)
         self.driver.find_element(
             By.XPATH, '//input[@name="mfid_user[password]"]').send_keys(config.MF_PASSWORD)
         self.driver.find_element(By.CSS_SELECTOR, 'button#submitto').click()
 
         # moneyforwardのtopページが出ているはず
         self.__wait.until(EC.presence_of_element_located)
+        logger.info('Current URL: %s', self.driver.current_url)
+
         if self.driver.current_url == f'{HOME_URL}/':
             logger.info('Login with email succeeded.')
             # Cookieに保存する
@@ -91,6 +91,8 @@ class MoneyforwardDriver:
         if not self.__cookie_path.exists():
             logger.info('Cookie does not exist.')
             return False
+
+        logger.info('Trying to login with cookie.')
 
         # Cookieの復元
         # 一旦ドメインが一致するサイトを呼ぶことでadd_cookieが復元できる
