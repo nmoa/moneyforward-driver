@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*-coding:utf-8 -*-
 
-import os
 import sys
 import datetime
 import time
@@ -11,17 +10,20 @@ from io import StringIO
 from typing import List
 from logzero import logger
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import WebDriverException, ElementClickInterceptedException
 import pandas as pd
 from . import config
 from . import chromedriver
 
 SLEEP_SEC = 2
-HOME_URL = 'https://moneyforward.com/'
-SIGN_IN_URL = 'https://moneyforward.com/sign_in'
-HISTORY_URL = 'https://moneyforward.com/bs/history'
-EXPENSES_URL = 'https://moneyforward.com/cf'
-SUMMARY_URL = 'https://moneyforward.com/cf/summary'
+HOME_URL = 'https://moneyforward.com'
+SIGN_IN_URL = f'{HOME_URL}/sign_in'
+HISTORY_URL = f'{HOME_URL}/bs/history'
+EXPENSES_URL = f'{HOME_URL}/cf'
+SUMMARY_URL = f'{HOME_URL}/cf/summary'
+ACCOUNTS_URL = f'{HOME_URL}/accounts'
 
 
 class MoneyforwardDriver:
@@ -35,6 +37,7 @@ class MoneyforwardDriver:
         self.driver.implicitly_wait(10)
         self.__cookie_path = Path(cookie_path) if cookie_path else None
         self.__download_dir = download_dir_verified
+        self.__wait = WebDriverWait(driver=self.driver, timeout=60)
         return
 
     def __del__(self):
@@ -48,10 +51,6 @@ class MoneyforwardDriver:
         """
         logger.info('Trying to login with cookie.')
         is_success = self.__login_with_cookie() or self.__login_with_email()
-        if is_success:
-            logger.info('Login succeeded.')
-        else:
-            logger.error('Login Failed.')
         return is_success
 
     def __login_with_email(self) -> bool:
@@ -73,21 +72,23 @@ class MoneyforwardDriver:
             By.XPATH, '//input[@name="mfid_user[password]"]').send_keys(config.MF_PASSWORD)
         self.driver.find_element(By.CSS_SELECTOR, 'button#submitto').click()
 
-        self.driver.get(HISTORY_URL)
-        time.sleep(SLEEP_SEC)
-        if self.driver.current_url != HISTORY_URL:
-            return False
-        else:
+        # moneyforwardのtopページが出ているはず
+        self.__wait.until(EC.presence_of_element_located)
+        if self.driver.current_url == f'{HOME_URL}/':
+            logger.info('Login with email succeeded.')
             # Cookieに保存する
-            if (self.__cookie_path):
+            if self.__cookie_path:
                 pickle.dump(self.driver.get_cookies(),
                             open(self.__cookie_path, 'wb'))
             return True
+        else:
+            logger.warning('Login with email failed.')
+            return False
 
     def __login_with_cookie(self) -> bool:
         if self.__cookie_path is None:
             return False
-        if (not self.__cookie_path.exists()):
+        if not self.__cookie_path.exists():
             logger.info('Cookie does not exist.')
             return False
 
@@ -102,34 +103,59 @@ class MoneyforwardDriver:
 
         # ログイン実行
         self.driver.get(HISTORY_URL)
-        time.sleep(SLEEP_SEC)
-        # ここではmoneyforwardのtopページが出る
+        self.__wait.until(EC.presence_of_element_located)
         logger.info('Current URL: %s', self.driver.current_url)
 
-        # ログインの確認のため、資産推移のページに遷移する。
-        # ログインに失敗している場合、資産推移のページが表示されない。
-        self.driver.get(HISTORY_URL)
-        time.sleep(SLEEP_SEC)
-        logger.info('Current URL: %s', self.driver.current_url)
-        return (self.driver.current_url == HISTORY_URL)
+        # moneyforwardのtopページが出ているはず
+        self.__wait.until(EC.presence_of_element_located)
+        if self.driver.current_url == f'{HOME_URL}/':
+            logger.info('Login with cookie succeeded.')
+            return True
+        else:
+            logger.warning('Login with cookie failed.')
+            return False
 
     def update(self) -> None:
         """すべての口座を更新する
         """
-        try:
-            self.driver.get('https://moneyforward.com/accounts')
-            elms = self.driver.find_elements(By.XPATH,
-                                             "//input[@data-disable-with='更新']")
-            for i, elm in enumerate(elms):
-                logger.info('Updating account... [%d/%d]', i+1, len(elms))
-                elm.click()
-                time.sleep(0.5)
-        except WebDriverException as e:
-            logger.error(e, file=sys.stderr)
-        else:
-            logger.info('Update finished.')
-        time.sleep(SLEEP_SEC)
+        UPDATE_INTERVAL_SEC = 0.5
+
+        self.driver.get(ACCOUNTS_URL)
+        services_names = self.__get_service_names()
+        for num, service_name in enumerate(services_names):
+            try:
+                status = self.__get_services()[num].find_element(
+                    By.CLASS_NAME, 'account-status').text
+                if status == '正常':
+                    logger.info('%s を更新しています...', service_name)
+                    self.__update_service(num)
+                    time.sleep(UPDATE_INTERVAL_SEC)
+                else:
+                    logger.info('%s の更新をスキップします。%s', service_name, status)
+            except WebDriverException as e:
+                logger.error(e.msg)
         return
+
+    def __get_service_names(self) -> List[str]:
+        def extract(raw_text):
+            index = raw_text.find(" ( 本サイト )")
+            if index != -1:
+                return raw_text[:index]
+
+        elms = self.driver.find_elements(By.CSS_SELECTOR, 'td.service')
+        return [extract(elm.text) for elm in elms]
+
+    def __get_services(self):
+        table = self.driver.find_elements(
+            By.XPATH, '//*[@id="account-table"]')
+        return table[1].find_elements(By.TAG_NAME, 'tr')[1:]
+
+    def __update_service(self, num):
+        elms = self.driver.find_elements(
+            By.CSS_SELECTOR, 'input.btn[type="submit"][value="更新"]')
+        buttons = [elm for elm in elms if elm.accessible_name == '更新']
+        self.__wait.until(EC.element_to_be_clickable(buttons[num]))
+        buttons[num].click()
 
     def input_expense(self, category: str, subcategory: str, date: str, amount: int, content: str = ''):
         """支出を入力する
@@ -164,7 +190,7 @@ class MoneyforwardDriver:
             self.driver.find_element(
                 By.XPATH, '//*[@id="cancel-button"]').click()
         except WebDriverException as e:
-            logger.error(e)
+            logger.error(e.msg)
             return False
         except IndexError:
             logger.error(
@@ -206,7 +232,7 @@ class MoneyforwardDriver:
             year (int): 年
             month (int): 月
         """
-        if (not self.__download_dir):
+        if not self.__download_dir:
             logger.error('The download directory is invalid.')
             return
         logger.info('Downloading an asset data for %d/%d.', year, month)
@@ -216,7 +242,7 @@ class MoneyforwardDriver:
                 f'https://moneyforward.com/bs/history/list/{date}/monthly/csv')
             time.sleep(0.5)
         except WebDriverException as e:
-            logger.error(e)
+            logger.error(e.msg)
         else:
             logger.info('Download completed.')
         time.sleep(SLEEP_SEC)
@@ -301,8 +327,8 @@ class MoneyforwardDriver:
     def __select_month(self, target_date: str) -> bool:
         previous_month_button = self.__get_previous_month_button()
         displayed_date = self.__get_date()
-        while (True):
-            if (displayed_date == target_date):
+        while True:
+            if displayed_date == target_date:
                 return True
             try:
                 previous_month_button.click()
