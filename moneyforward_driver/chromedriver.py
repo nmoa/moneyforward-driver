@@ -14,8 +14,7 @@ def is_raspberrypi() -> bool:
 def init(headless: bool = True, download_dir: str = '') -> webdriver.Chrome:
     options = Options()
     options.add_argument(
-        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-        '(KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36')
+        '--user-agent=Mozilla/5.0 (Windows NT 6.1; WOW64; rv:33.0) Gecko/20120101 Firefox/33.0')
 
     if headless:
         options.add_argument("--headless")
